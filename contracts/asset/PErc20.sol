@@ -4,13 +4,13 @@ pragma solidity ^0.8.10;
 import "./PToken.sol";
 
 contract PErc20 is PToken, PErc20Interface {
-    function initialize(address underlying_,
-                        PBAdminInterface pbAdmin_,
-                        InterestModelInterface interestModel_,
-                        uint256 initialExchangeRateMantissa_,
-                        string memory name_,
-                        string memory symbol_,
-                        uint8 decimals_) public {
+    constructor(address underlying_,
+                PBAdminInterface pbAdmin_,
+                InterestModelInterface interestModel_,
+                uint256 initialExchangeRateMantissa_,
+                string memory name_,
+                string memory symbol_,
+                uint8 decimals_) PToken() {
 
         super.initialize(pbAdmin_, interestModel_, initialExchangeRateMantissa_, name_, symbol_, decimals_);
 

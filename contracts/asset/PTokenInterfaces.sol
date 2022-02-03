@@ -15,8 +15,8 @@ contract PTokenStorage {
     uint256 internal constant borrowRateMaxMantissa = 0.0005e16;
     uint256 internal constant reserveFactorMaxMantissa = 1e18;
 
-    address payable public admin;
-    address payable public pendingAdmin;
+    address public admin;
+    address public pendingAdmin;
 
     PBAdminInterface public pbAdmin;
 

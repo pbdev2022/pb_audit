@@ -6,14 +6,13 @@ import "./PTokenInterfaces.sol";
 import "../errrpt/ErrorReporter.sol";
 import "../math/ExpMath.sol";
 import "../math/ExpMathRtn.sol";
-import "./EIP20Interface.sol";
 import "../interest/InterestModelInterface.sol";
 
 abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorReporter {
     using SafeMath for uint256;
 
     constructor() {
-        admin = payable(msg.sender);
+        admin = msg.sender;
     }
 
     function initialize(PBAdminInterface pbAdmin_,
@@ -22,7 +21,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
                         string memory name_,
                         string memory symbol_,
                         uint8 decimals_) public {
-						
+
         require(msg.sender == admin, "only admin may initialize the market");
         require(accrualBlockNumber == 0 && borrowIndex == 0, "market may only be initialized once");
         require(initialExchangeRateMantissa_ > 0, "initial exchange rate must be greater than zero.");
@@ -836,7 +835,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
 
         totalReserves = totalReservesNew;
 
-        doTransferOut(admin, reduceAmount);
+        doTransferOut(payable(admin), reduceAmount);
 
         emit ReservesReduced(admin, reduceAmount, totalReservesNew);
 

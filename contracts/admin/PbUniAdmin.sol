@@ -4,77 +4,73 @@ pragma solidity ^0.8.10;
 import "../errrpt/ErrorReporter.sol";
 import "./PBAdminStorage.sol";
 
-contract PbUniAdmin is PbUniAdminAdminStorage, PBAdminErrorReporter {
+contract PBUniAdmin {
 
-    event NewPendingImplementation(address oldPendingImplementation, address newPendingImplementation);
-    event NewImplementation(address oldImplementation, address newImplementation);
-    event NewPendingAdmin(address oldPendingAdmin, address newPendingAdmin);
+    address public admin;
+    address public readyAdmin;
+
+    address public nowImpl;
+    address public readyImpl;
+
+    event NewReadyImpl(address oldReadyImpl, address newReadyImpl);
+    event NewImpl(address oldImpl, address newImpl);
+    event NewReadyAdmin(address oldReadyAdmin, address newReadyAdmin);
     event NewAdmin(address oldAdmin, address newAdmin);
 
     constructor() {
         admin = msg.sender;
     }
 
-    function _setPendingImplementation(address newPendingImplementation) public returns (uint) {
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_PENDING_IMPLEMENTATION_OWNER_CHECK);
-        }
+    function setReadyImpl(address newReadyImpl) onlyAdmin public {
+		require(newReadyImpl != address(0), 'setReadyImpl - Invalid newReadyImpl Err 1');
+        require(newReadyImpl != readyImpl, 'setReadyImpl - Invalid newReadyImpl Err 2');
+		require(newReadyImpl != nowImpl, 'setReadyImpl - Invalid newReadyImpl Err 3');
 
-        address oldPendingImplementation = pendingPBAdminImplementation;
-        pendingPBAdminImplementation = newPendingImplementation;
+        address oldReadyImpl = readyImpl;
+        readyImpl = newReadyImpl;
 
-        emit NewPendingImplementation(oldPendingImplementation, pendingPBAdminImplementation);
-
-        return uint(Error.NO_ERROR);
+        emit NewReadyImpl(oldReadyImpl, readyImpl);
     }
 
-    function _acceptImplementation() public returns (uint) {
-        if (msg.sender != pendingPBAdminImplementation || pendingPBAdminImplementation == address(0)) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.ACCEPT_PENDING_IMPLEMENTATION_ADDRESS_CHECK);
-        }
+    function acceptImpl() onlyAdmin public {
+		require(readyImpl != address(0), 'acceptImpl - Invalid readyImpl Err 1');
+		require(readyImpl != nowImpl, 'acceptImpl - Invalid readyImpl Err 2');
+        
+        address oldImpl = nowImpl;
+        address oldReadyImpl = readyImpl;
+        nowImpl = readyImpl;
+        readyImpl = address(0);
 
-        address oldImplementation = pbAdminImplementation;
-        address oldPendingImplementation = pendingPBAdminImplementation;
-        pbAdminImplementation = pendingPBAdminImplementation;
-        pendingPBAdminImplementation = address(0);
-
-        emit NewImplementation(oldImplementation, pbAdminImplementation);
-        emit NewPendingImplementation(oldPendingImplementation, pendingPBAdminImplementation);
-
-        return uint(Error.NO_ERROR);
+        emit NewImpl(oldImpl, nowImpl);
+        emit NewReadyImpl(oldReadyImpl, readyImpl);
     }
 
-    function _setPendingAdmin(address newPendingAdmin) public returns (uint) {
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_PENDING_ADMIN_OWNER_CHECK);
-        }
+    function setReadyAdmin(address newReadyAdmin) onlyAdmin public {
+        require(newReadyAdmin != address(0), 'setReadyAdmin - Invalid newReadyAdmin Err 1');
+        require(newReadyAdmin != readyAdmin, 'setReadyAdmin - Invalid newReadyAdmin Err 2');
+        require(newReadyAdmin != admin, 'setReadyAdmin - Invalid newReadyAdmin Err 3');
 
-        address oldPendingAdmin = pendingAdmin;
-        pendingAdmin = newPendingAdmin;
+        address oldReadyAdmin = readyAdmin;
+        readyAdmin = newReadyAdmin;
 
-        emit NewPendingAdmin(oldPendingAdmin, newPendingAdmin);
-
-        return uint(Error.NO_ERROR);
+        emit NewReadyAdmin(oldReadyAdmin, newReadyAdmin);
     }
 
-    function _acceptAdmin() public returns (uint) {
-        if (msg.sender != pendingAdmin || msg.sender == address(0)) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.ACCEPT_ADMIN_PENDING_ADMIN_CHECK);
-        }
+    function acceptAdmin() onlyAdmin public {
+        require(readyAdmin != address(0), 'acceptAdmin - Invalid readyAdmin Err 1');
+        require(readyAdmin != admin, 'acceptAdmin - Invalid readyAdmin Err 2');
 
         address oldAdmin = admin;
-        address oldPendingAdmin = pendingAdmin;
-        admin = pendingAdmin;
-        pendingAdmin = address(0);
+        address oldReadyAdmin = readyAdmin;
+        admin = readyAdmin;
+        readyAdmin = address(0);
 
         emit NewAdmin(oldAdmin, admin);
-        emit NewPendingAdmin(oldPendingAdmin, pendingAdmin);
-
-        return uint(Error.NO_ERROR);
+        emit NewReadyAdmin(oldReadyAdmin, readyAdmin);
     }
 
     fallback () payable external {
-        (bool success, ) = pbAdminImplementation.delegatecall(msg.data);
+        (bool success, ) = nowImpl.delegatecall(msg.data);
 
         assembly {
               let free_mem_ptr := mload(0x40)
@@ -89,4 +85,9 @@ contract PbUniAdmin is PbUniAdminAdminStorage, PBAdminErrorReporter {
     receive () payable external {
         revert("Not Supported Method");   
     }
+
+	modifier onlyAdmin() {
+		require(msg.sender == admin, 'Only admin can envoke this method');
+		_;
+	}    
 }

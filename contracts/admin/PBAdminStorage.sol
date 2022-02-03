@@ -4,18 +4,17 @@ pragma solidity ^0.8.10;
 import "../asset/PToken.sol";
 import "../oracle/PriceOracle.sol";
 
-contract PbUniAdminAdminStorage {
-    address public admin;
-    address public pendingAdmin;
-    address public pbAdminImplementation;
-    address public pendingPBAdminImplementation;
+contract PBUniAdminStorage {
+    address public nowAdminAddr;
+    address public readyAdminAddr;
+    address public pbAdminImpl;
+    address public readyPBAdminImpl;
 }
 
 contract PBAdminStorage {
     struct Market {
         bool isListed;
         uint256 collateralFactorMantissa;
-        bool isPbed;
     }
 
     struct PBMarketState {

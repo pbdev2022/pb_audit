@@ -9,10 +9,8 @@ contract PEther is PToken {
                 uint256 initialExchangeRateMantissa_,
                 string memory name_,
                 string memory symbol_,
-                uint8 decimals_) {
-        admin = payable(msg.sender);
-
-        initialize(pbAdmin_, interestModel_, initialExchangeRateMantissa_, name_, symbol_, decimals_);
+                uint8 decimals_) PToken() {
+        super.initialize(pbAdmin_, interestModel_, initialExchangeRateMantissa_, name_, symbol_, decimals_);
     }
 
     function mint() external payable {
