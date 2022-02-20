@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "./ExpBase.sol";
 import "./SafeMathRtn.sol";
@@ -21,6 +21,15 @@ contract ExpMathRtn is ExpBase, SafeMathRtn {
 
         return (MathError.NO_ERROR, Exp({mantissa: product}));
     }
+
+    function addExpUintRtn(Exp memory a, uint256 added) pure internal returns (MathError, uint256) {
+        (MathError err, Exp memory product) = mulExpUintRtn(a, added);
+        if (err != MathError.NO_ERROR) {
+            return (err, 0);
+        }
+        return (MathError.NO_ERROR, product.mantissa);
+    }
+
 	
     function mulExpRtn(uint256 a, uint256 b) pure internal returns (MathError, Exp memory) {
         return mulExpRtn(Exp({mantissa: a}), Exp({mantissa: b}));

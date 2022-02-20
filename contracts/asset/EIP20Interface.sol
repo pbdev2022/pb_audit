@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 interface EIP20Interface {
     function name() external view returns (string memory);
@@ -10,6 +10,7 @@ interface EIP20Interface {
     function balanceOf(address owner) external view returns (uint256 balance);
     function transfer(address dst, uint256 amount) external returns (bool success);
     function transferFrom(address src, address dst, uint256 amount) external returns (bool success);
+    function transferFromTry(address src, address dst, uint256 amount) external returns (bool success);    
     function approve(address spender, uint256 amount) external returns (bool success);
     function allowance(address owner, address spender) external view returns (uint256 remaining);
 

@@ -1,29 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "./PToken.sol";
 
 contract PEther is PToken {
     constructor(PBAdminInterface pbAdmin_,
                 InterestModelInterface interestModel_,
-                uint256 initialExchangeRateMantissa_,
                 string memory name_,
                 string memory symbol_,
                 uint8 decimals_) PToken() {
-        super.initialize(pbAdmin_, interestModel_, initialExchangeRateMantissa_, name_, symbol_, decimals_);
+        super.initialize(pbAdmin_, interestModel_, name_, symbol_, decimals_);
     }
 
     function mint() external payable {
         (uint256 err,) = mintInternal(msg.value);
-        requireNoError(err, "mint failed");
+        requireNoError(err, "PEther: mint failed");
     }
 
     function redeem(uint256 redeemTokens) external returns (uint256) {
         return redeemInternal(redeemTokens);
-    }
-
-    function redeemUnderlying(uint256 redeemAmount) external returns (uint256) {
-        return redeemUnderlyingInternal(redeemAmount);
     }
 
     function borrow(uint256 borrowAmount) external returns (uint256) {
@@ -32,17 +27,17 @@ contract PEther is PToken {
 
     function repayBorrow() external payable {
         (uint256 err,) = repayBorrowInternal(msg.value);
-        requireNoError(err, "repayBorrow failed");
+        requireNoError(err, "PEther: repayBorrow failed");
     }
 
     function repayBorrowBehalf(address borrower) external payable {
         (uint256 err,) = repayBorrowBehalfInternal(borrower, msg.value);
-        requireNoError(err, "repayBorrowBehalf failed");
+        requireNoError(err, "PEther: repayBorrowBehalf failed");
     }
 
     function liquidateBorrow(address borrower, PToken pTokenCollateral) external payable {
         (uint256 err,) = liquidateBorrowInternal(borrower, msg.value, pTokenCollateral);
-        requireNoError(err, "liquidateBorrow failed");
+        requireNoError(err, "PEther: liquidateBorrow failed");
     }
 
     function _addReserves() external payable returns (uint256) {
@@ -51,7 +46,7 @@ contract PEther is PToken {
 
     receive() external payable {
         (uint256 err,) = mintInternal(msg.value);
-        requireNoError(err, "mint failed");
+        requireNoError(err, "PEther: mint failed");
     }
 
     function getCashPrior() internal view override returns (uint256) {
@@ -61,8 +56,8 @@ contract PEther is PToken {
     }
 
     function doTransferIn(address from, uint256 amount) internal override returns (uint256) {
-        require(msg.sender == from, "sender mismatch");
-        require(msg.value == amount, "value mismatch");
+        require(msg.sender == from, "PEther: sender mismatch");
+        require(msg.value == amount, "PEther: value mismatch");
         return amount;
     }
 

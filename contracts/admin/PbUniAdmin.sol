@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "../errrpt/ErrorReporter.sol";
 import "./PBAdminStorage.sol";
@@ -46,9 +46,9 @@ contract PBUniAdmin {
     }
 
     function setReadyAdmin(address newReadyAdmin) onlyAdmin public {
-        require(newReadyAdmin != address(0), 'setReadyAdmin - Invalid newReadyAdmin Err 1');
-        require(newReadyAdmin != readyAdmin, 'setReadyAdmin - Invalid newReadyAdmin Err 2');
-        require(newReadyAdmin != admin, 'setReadyAdmin - Invalid newReadyAdmin Err 3');
+        require(newReadyAdmin != address(0), 'setReadyAdmin - newReadyAdmin == address(0)');
+        require(newReadyAdmin != readyAdmin, 'setReadyAdmin - nnewReadyAdmin == readyAdmin');
+        require(newReadyAdmin != admin, 'setReadyAdmin - newReadyAdmin == admin');
 
         address oldReadyAdmin = readyAdmin;
         readyAdmin = newReadyAdmin;
@@ -57,8 +57,8 @@ contract PBUniAdmin {
     }
 
     function acceptAdmin() onlyAdmin public {
-        require(readyAdmin != address(0), 'acceptAdmin - Invalid readyAdmin Err 1');
-        require(readyAdmin != admin, 'acceptAdmin - Invalid readyAdmin Err 2');
+        require(readyAdmin != address(0), 'acceptAdmin - readyAdmin == address(0)');
+        require(readyAdmin != admin, 'acceptAdmin - readyAdmin == admin');
 
         address oldAdmin = admin;
         address oldReadyAdmin = readyAdmin;
@@ -83,11 +83,11 @@ contract PBUniAdmin {
     }
 
     receive () payable external {
-        revert("Not Supported Method");   
+        revert("PBUniAdmin: Not Supported Method");   
     }
 
 	modifier onlyAdmin() {
-		require(msg.sender == admin, 'Only admin can envoke this method');
+		require(msg.sender == admin, 'PBUniAdmin: msg.sender != admin');
 		_;
 	}    
 }

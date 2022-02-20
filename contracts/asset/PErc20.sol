@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "./PToken.sol";
 
 contract PErc20 is PToken, PErc20Interface {
+    event Log(string message);
+    event LogBytes(bytes data);    
+
     constructor(address underlying_,
                 PBAdminInterface pbAdmin_,
                 InterestModelInterface interestModel_,
-                uint256 initialExchangeRateMantissa_,
                 string memory name_,
                 string memory symbol_,
                 uint8 decimals_) PToken() {
 
-        super.initialize(pbAdmin_, interestModel_, initialExchangeRateMantissa_, name_, symbol_, decimals_);
-
+        super.initialize(pbAdmin_, interestModel_, name_, symbol_, decimals_);
         underlying = underlying_;
-        EIP20Interface(underlying).totalSupply();
+        //EIP20Interface(underlying).totalSupply();
     }
 
     function mint(uint256 mintAmount) external override returns (uint256) {
@@ -25,10 +26,6 @@ contract PErc20 is PToken, PErc20Interface {
 
     function redeem(uint256 redeemTokens) external override returns (uint256) {
         return redeemInternal(redeemTokens);
-    }
-
-    function redeemUnderlying(uint256 redeemAmount) external override returns (uint256) {
-        return redeemUnderlyingInternal(redeemAmount);
     }
 
     function borrow(uint256 borrowAmount) external override returns (uint256) {
@@ -51,7 +48,7 @@ contract PErc20 is PToken, PErc20Interface {
     }
 
     function sweepToken(EIP20Interface token) external override {    
-    	require(address(token) != underlying, "PErc20::sweepToken: can not sweep underlying token");
+    	require(address(token) != underlying, "PErc20: sweepToken() - can not sweep underlying token");
     	uint256 balance = token.balanceOf(address(this));
     	token.transfer(admin, balance);
     }
@@ -84,10 +81,10 @@ contract PErc20 is PToken, PErc20Interface {
                     revert(0, 0)
                 }
         }
-        require(success, "TOKEN_TRANSFER_IN_FAILED");
+        require(success, "PErc20: TOKEN_TRANSFER_IN_FAILED");
 
         uint256 balanceAfter = EIP20Interface(underlying).balanceOf(address(this));
-        require(balanceAfter >= balanceBefore, "TOKEN_TRANSFER_IN_OVERFLOW");
+        require(balanceAfter >= balanceBefore, "PErc20: TOKEN_TRANSFER_IN_OVERFLOW");
         return balanceAfter - balanceBefore;
     }
 
@@ -109,6 +106,6 @@ contract PErc20 is PToken, PErc20Interface {
                     revert(0, 0)
                 }
         }
-        require(success, "TOKEN_TRANSFER_OUT_FAILED");
+        require(success, "PErc20: TOKEN_TRANSFER_OUT_FAILED");
     }
 }

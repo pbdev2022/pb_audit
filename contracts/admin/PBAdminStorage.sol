@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "../asset/PToken.sol";
 import "../oracle/PriceOracle.sol";
@@ -38,8 +38,6 @@ contract PBAdminStorage {
     mapping(address => mapping(address => bool)) public marketsAccountMembership;
 
     address public pauseGuardian;
-    bool public _mintGuardianPaused;
-    bool public _borrowGuardianPaused;
     bool public transferGuardianPaused;
     bool public seizeGuardianPaused;
     mapping(address => bool) public mintGuardianPaused;
@@ -51,11 +49,8 @@ contract PBAdminStorage {
     mapping(address => PBMarketState) public pbBorrowState;
     mapping(address => mapping(address => uint256)) public pbSupplierIndex;
     mapping(address => mapping(address => uint256)) public pbBorrowerIndex;
-    mapping(address => uint256) public pbAccrued;
+    mapping(address => mapping(address => uint256)) public pTokenAccrued;
 
     address public borrowCapGuardian;
     mapping(address => uint256) public borrowCaps;
-
-    mapping(address => uint256) public clankBorrowSpeeds;
-    mapping(address => uint256) public clankSupplySpeeds;
 }

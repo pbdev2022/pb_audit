@@ -1,22 +1,26 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 abstract contract PBAdminInterface {
     bool public constant isPBAdmin = true;
 
-    function enterMarkets(address[] calldata pTokens) external virtual returns (uint[] memory);
-    function exitMarket(address pToken) external virtual returns (uint);
+    function enterMarkets(address[] calldata pTokenAddrs) external virtual returns (uint[] memory);
+    function exitMarket(address pTokenAddr) external virtual returns (uint);
 
-    function mintAllowed(address pToken, address minter, uint mintAmount) external virtual returns (uint);
+    function mintAllowed(address pTokenAddr, address minter, uint mintAmount) external virtual returns (uint);
 
-    function redeemAllowed(address pToken, address redeemer, uint redeemTokens) external virtual returns (uint);
-    function redeemVerify(address pToken, address redeemer, uint redeemAmount, uint redeemTokens) external virtual;
+    function redeemAllowed(address pTokenAddr, address redeemer, uint redeemTokens) external virtual returns (uint);
+    function redeemVerify(address pTokenAddr, address redeemer, uint redeemAmount, uint redeemTokens) external virtual;
 
-    function borrowAllowed(address pToken, address borrower, uint borrowAmount) external virtual returns (uint);
-    function repayBorrowAllowed(address pToken, address payer, address borrower, uint repayAmount) external virtual returns (uint);
-    function liquidateBorrowAllowed(address pTokenBorrowed, address pTokenCollateral, address liquidator, address borrower, uint repayAmount) external virtual returns (uint);
-    function seizeAllowed(address pTokenCollateral, address pTokenBorrowed, address liquidator, address borrower, uint seizeTokens) external virtual returns (uint);
-    function transferAllowed(address pToken, address src, address dst, uint transferTokens) external virtual returns (uint);
+    function borrowAllowed(address pTokenAddr, address borrower, uint borrowAmount) external virtual returns (uint);
+    function repayBorrowAllowed(address pTokenAddr, address payer, address borrower, uint repayAmount) external virtual returns (uint);
+    function liquidateBorrowAllowed(address pTokenAddrBorrowed, address pTokenAddrCollateral, address liquidator, address borrower, uint repayAmount) external virtual returns (uint);
+    function seizeAllowed(address pTokenAddrCollateral, address pTokenAddrBorrowed, address liquidator, address borrower, uint seizeTokens) external virtual returns (uint);
+    function transferAllowed(address pTokenAddr, address src, address dst, uint transferTokens) external virtual returns (uint);
 
-    function liquidateCalculateSeizeTokens(address pTokenBorrowed, address pTokenCollateral, uint repayAmount) external view virtual returns (uint, uint);
+    function liquidateCalculateSeizeTokens(address pTokenAddrBorrowed, address pTokenAddrCollateral, uint repayAmount) external view virtual returns (uint, uint);
+
+    function getAccruedTokens(address pTokenAddr, address holder) external view virtual returns (uint);
+    function getClankBlanace(address holder) external view virtual returns (uint);
+    function clankTransferIn(address pTokenAddr, address payer, uint interestAmount) external virtual returns (bool);
 }

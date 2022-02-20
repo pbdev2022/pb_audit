@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 contract PBAdminErrorReporter {
     enum Error {
@@ -50,13 +50,11 @@ contract PBAdminErrorReporter {
 
     function fail(Error err, FailureInfo info) internal returns (uint256) {
         emit Failure(uint256(err), uint256(info), 0);
-
         return uint256(err);
     }
 
     function failOpaque(Error err, FailureInfo info, uint256 opaqueError) internal returns (uint256) {
         emit Failure(uint256(err), uint256(info), opaqueError);
-
         return uint256(err);
     }
 }
@@ -88,6 +86,7 @@ contract TokenErrorReporter {
         ACCRUE_INTEREST_BORROW_RATE_CALCULATION_FAILED,
         ACCRUE_INTEREST_NEW_BORROW_INDEX_CALCULATION_FAILED,
         ACCRUE_INTEREST_NEW_TOTAL_BORROWS_CALCULATION_FAILED,
+        ACCRUE_INTEREST_NEW_TOTAL_BORROW_INTERESTS_CALCULATION_FAILED,        
         ACCRUE_INTEREST_NEW_TOTAL_RESERVES_CALCULATION_FAILED,
         ACCRUE_INTEREST_SIMPLE_INTEREST_FACTOR_CALCULATION_FAILED,
         BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED,
@@ -170,13 +169,11 @@ contract TokenErrorReporter {
 
     function fail(Error err, FailureInfo info) internal returns (uint256) {
         emit Failure(uint256(err), uint256(info), 0);
-
         return uint256(err);
     }
 
     function failOpaque(Error err, FailureInfo info, uint256 opaqueError) internal returns (uint256) {
         emit Failure(uint256(err), uint256(info), opaqueError);
-
         return uint256(err);
     }
 }

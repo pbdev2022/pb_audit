@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "../oracle/PriceOracle.sol";
 import "../asset/PErc20.sol";
@@ -18,9 +18,13 @@ contract PBOracle is PriceOracle {
         return asset;
     }
 
-    function getUnderlyingPrice(PToken pToken) public view override returns (uint256) {
+    function getUnderlyingPrice(PToken pToken) external view override returns (uint256) {
         return prices[_getUnderlyingAddress(pToken)];
     }
+
+    function getDirectPrice(address asset) external view override returns (uint256) {
+        return prices[asset];
+    }    
 
     function setUnderlyingPrice(PToken pToken, uint256 underlyingPriceMantissa) public {
         address asset = _getUnderlyingAddress(pToken);

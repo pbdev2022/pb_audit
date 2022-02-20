@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "../admin/PBAdminInterface.sol";
 import "../interest/InterestModelInterface.sol";
@@ -22,7 +22,6 @@ contract PTokenStorage {
 
     InterestModelInterface public interestModel;
 
-    uint256 internal initialExchangeRateMantissa;
     uint256 public reserveFactorMantissa;
     uint256 public accrualBlockNumber;
     uint256 public borrowIndex;
@@ -35,6 +34,7 @@ contract PTokenStorage {
 
     struct BorrowSnapshot {
         uint256 principal;
+        uint256 purePrincipal;
         uint256 interestIndex;
     }
 
@@ -68,18 +68,20 @@ abstract contract PTokenInterface is PTokenStorage {
     function approve(address spender, uint256 amount) external virtual returns (bool);
     function allowance(address owner, address spender) external view virtual returns (uint256);
     function balanceOf(address owner) external view virtual returns (uint256);
-    function balanceOfUnderlying(address owner) external virtual returns (uint256);
-    function getAccountSnapshot(address account) external view virtual returns (uint256, uint256, uint256, uint256);
+    function balanceOfUnderlying(address owner) external view virtual returns (uint256);
+    function getAccountSnapshot(address account) external view virtual returns (uint256, uint256, uint256);
     function borrowRatePerBlock() external view virtual returns (uint256);
     function supplyRatePerBlock() external view virtual returns (uint256);
+    function borrowAPR() external view virtual returns (uint256);
+    function supplyAPR() external view virtual returns (uint256);
     function totalBorrowsCurrent() external virtual returns (uint256);
     function borrowBalanceCurrent(address account) external virtual returns (uint256);
     function borrowBalanceStored(address account) public view virtual returns (uint256);
-    function exchangeRateCurrent() public virtual returns (uint256);
-    function exchangeRateStored() public view virtual returns (uint256);
+    function borrowBalanceStored2(address account) public view virtual returns (uint256, uint256);
     function getCash() external view virtual returns (uint256);
     function accrueInterest() public virtual returns (uint256);
     function seize(address liquidator, address borrower, uint256 seizeTokens) external virtual returns (uint256);
+    function getAccruedTokens() external view virtual returns (uint256);
 
     function _setPendingAdmin(address payable newPendingAdmin) external virtual returns (uint256);
     function _acceptAdmin() external virtual returns (uint256);
@@ -97,7 +99,6 @@ abstract contract PErc20Interface is PErc20Storage {
 
     function mint(uint256 mintAmount) external virtual returns (uint256);
     function redeem(uint256 redeemTokens) external virtual returns (uint256);
-    function redeemUnderlying(uint256 redeemAmount) external virtual returns (uint256);
     function borrow(uint256 borrowAmount) external virtual returns (uint256);
     function repayBorrow(uint256 repayAmount) external virtual returns (uint256);
     function repayBorrowBehalf(address borrower, uint256 repayAmount) external virtual returns (uint256);

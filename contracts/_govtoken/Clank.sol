@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+ // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
 import "../math/SafeMath.sol";
 
@@ -19,9 +19,9 @@ contract BasicToken is ERC20Basic {
 		return totalSupply_;
 	}
 
-	function transfer(address _to, uint256 _value) public override returns (bool) {
-		require(_to != address(0));
-		require(_value <= balances[msg.sender]);
+	function transfer(address _to, uint256 _value) public override virtual returns (bool) {
+		require(_to != address(0), "Clank:transfer: _to == address(0)");
+		require(_value <= balances[msg.sender], "Clank:transfer: _value > balances[msg.sender]");
 		balances[msg.sender] = balances[msg.sender].sub(_value);
 		balances[_to] = balances[_to].add(_value);
 		emit Transfer(msg.sender, _to, _value);
@@ -47,9 +47,10 @@ contract StandardToken is ERC20, BasicToken {
 
 	function transferFrom(address _from, address _to, uint256 _value) public override virtual returns (bool)
 	{
-		require(_to != address(0));
-		require(_value <= balances[_from]);
-		require(_value <= allowed[_from][msg.sender]);
+		require(_to != address(0), "Clank:transferFrom: _to == address(0)");
+		require(_value <= balances[_from], "Clank:transferFrom: _value > balances[_from]");
+		require(_value <= allowed[_from][msg.sender], "Clank:transferFrom: _value > allowed[_from][msg.sender]");
+
 		balances[_from] = balances[_from].sub(_value);
 		balances[_to] = balances[_to].add(_value);
 		allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
@@ -94,7 +95,7 @@ contract MultiOwnable {
 	event OwnershipRemoved(address indexed removedOwner);
 	
 	modifier onlyOwner() {
-		require(owners[msg.sender]);
+		require(owners[msg.sender], "Clank:onlyOwner: not in owners[msg.sender]");
 		_;
 	}
 	
@@ -104,21 +105,21 @@ contract MultiOwnable {
 	}
 	
 	function addOwner(address guest) onlyOwner public {
-		require(guest != address(0));
+		require(guest != address(0), "Clank:addOwner: guest == address(0)");
 		owners[guest] = true;
 		emit OwnershipExtended(msg.sender, guest);
 	}
 	
 	function removeOwner(address removedOwner) onlyOwner public {
-		require(removedOwner != address(0));
-		require(unremovableOwner != removedOwner);
+		require(removedOwner != address(0), "Clank:removeOwner: removedOwner == address(0)");
+		require(unremovableOwner != removedOwner, "Clank:removeOwner: unremovableOwner != removedOwner");
 		delete owners[removedOwner];
 		emit OwnershipRemoved(removedOwner);
 	}
 
 	function transferOwnership(address newOwner) onlyOwner public {
-		require(newOwner != address(0));
-		require(unremovableOwner != msg.sender);
+		require(newOwner != address(0), "Clank:transferOwnership: newOwner == address(0)");
+		require(unremovableOwner != msg.sender, "Clank:transferOwnership: unremovableOwner != msg.sender");
 		owners[newOwner] = true;
 		delete owners[msg.sender];
 		emit OwnershipTransferred(msg.sender, newOwner);
@@ -155,7 +156,7 @@ contract Clank is StandardToken, MultiOwnable {
 	}
  
 	function mint(address _to, uint256 _amount) onlyOwner public returns (bool) {
-		require(_to != address(0));
+		require(_to != address(0), "Clank:mint: _to == address(0)");
 		totalSupply_ = totalSupply_.add(_amount);
 		balances[_to] = balances[_to].add(_amount);
 		emit Mint(_to, _amount);
@@ -164,7 +165,7 @@ contract Clank is StandardToken, MultiOwnable {
 	}
  
 	function burn(uint256 _amount) onlyOwner public {
-		require(_amount <= balances[msg.sender]);
+		require(_amount <= balances[msg.sender], "Clank:burn: _amount > balances[msg.sender]");
 		totalSupply_ = totalSupply_.sub(_amount);
 		balances[msg.sender] = balances[msg.sender].sub(_amount);
 		emit Burn(msg.sender, _amount);

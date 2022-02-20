@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.0;
 
 import "../errrpt/ErrorReporter.sol";
 import "../asset/PToken.sol";
@@ -21,8 +21,8 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     event NewLiquidationIncentive(uint oldLiquidationIncentiveMantissa, uint newLiquidationIncentiveMantissa);
     event NewPriceOracle(PriceOracle oldPriceOracle, PriceOracle newPriceOracle);
     event NewPauseGuardian(address oldPauseGuardian, address newPauseGuardian);
-    event ActionPaused(string action, bool pauseState);
-    event ActionPaused(PToken pToken, string action, bool pauseState);
+    event ActionPaused2(string action, bool pauseState);
+    event ActionPaused3(PToken pToken, string action, bool pauseState);
     event DistributedSupplierPB(PToken indexed pToken, address indexed supplier, uint pbDelta, uint pbSupplyIndex);
     event NewBorrowCap(PToken indexed pToken, uint newBorrowCap);
     event NewBorrowCapGuardian(address oldBorrowCapGuardian, address newBorrowCapGuardian);
@@ -31,36 +31,14 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     uint224 public constant pbInitialIndex = 1e36;
     uint internal constant collateralFactorMaxMantissa = 0.9e18; // 0.9
 
-    address clankAddress;
+    address public clankAddress;
 
     constructor() {
         admin = msg.sender;
     }
 
-    function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
-        if (_i == 0) {
-            return "0";
-        }
-        uint j = _i;
-        uint len;
-        while (j != 0) {
-            len++;
-            j /= 10;
-        }
-        bytes memory bstr = new bytes(len);
-        uint k = len;
-        while (_i != 0) {
-            k = k-1;
-            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
-            bytes1 b1 = bytes1(temp);
-            bstr[k] = b1;
-            _i /= 10;
-        }
-        return string(bstr);
-    }    
-
     function setClankAddress(address clankAddress_) public {
-        require(msg.sender == admin, "only admin can set clank address");
+        require(msg.sender == admin, "PBAdminImpl: only admin can set clank address");
         clankAddress = clankAddress_;
     }
 
@@ -102,13 +80,13 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     function exitMarket(address pTokenAddr) external override returns (uint) {
         PToken pToken = PToken(pTokenAddr);
 
-        (uint oErr, uint tokensHeld, uint amountOwed, ) = pToken.getAccountSnapshot(msg.sender);
+        (uint oErr, uint tokensHeld, uint amountOwed) = pToken.getAccountSnapshot(msg.sender);
 
-        require(oErr == 0, "exitMarket: getAccountSnapshot failed"); 
-        require(amountOwed == 0, "nonzero borrow balance");
+        require(oErr == 0, "PBAdminImpl: exitMarket - getAccountSnapshot failed"); 
+        require(amountOwed == 0, "PBAdminImpl: exitMarket - nonzero borrow balance");
 
         uint allowed = _redeemAllowedInternal(pTokenAddr, msg.sender, tokensHeld);
-        require(allowed == 0, uint2str(allowed));
+        require(allowed == 0, "PBAdminImpl: exitMarket - allowed != 0");
 
         if (!marketsAccountMembership[address(pToken)][msg.sender]) {
             return uint(Error.NO_ERROR);
@@ -136,28 +114,37 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         return uint(Error.NO_ERROR);
     }
 
-    function mintAllowed(address pToken, address minter, uint mintAmount) external override returns (uint) {
-        require(!mintGuardianPaused[pToken], "mint is paused");
-        if (!markets[pToken].isListed) {
+    function mintAllowed(address pTokenAddr, address minter, uint mintAmount) external override returns (uint) {
+        require(!mintGuardianPaused[pTokenAddr], "PBAdminImpl: mint is paused");
+        if (!markets[pTokenAddr].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
         }
 
+        if (!marketsAccountMembership[pTokenAddr][minter]) {    
+            require(msg.sender == pTokenAddr, "PBAdminImpl: sender must be pToken");
+            Error err = _addToMarketInternal(PToken(msg.sender), minter);
+            if (err != Error.NO_ERROR) {
+                return uint(err);
+            }
+            assert(marketsAccountMembership[pTokenAddr][minter]);
+        }        
+
         mintAmount;
 
-        _updatePbSupplyIndex(pToken);
-        _distributeSupplierPb(pToken, minter);
+        _updatePbSupplyIndex(pTokenAddr);
+        _distributeSupplierPb(pTokenAddr, minter);
 
         return uint(Error.NO_ERROR);
     }
 
-    function redeemAllowed(address pToken, address redeemer, uint redeemTokens) external override returns (uint) {
-        uint allowed = _redeemAllowedInternal(pToken, redeemer, redeemTokens);
+    function redeemAllowed(address pTokenAddr, address redeemer, uint redeemTokens) external override returns (uint) {
+        uint allowed = _redeemAllowedInternal(pTokenAddr, redeemer, redeemTokens);
         if (allowed != uint(Error.NO_ERROR)) {
             return allowed;
         }
 
-        _updatePbSupplyIndex(pToken);
-        _distributeSupplierPb(pToken, redeemer);
+        _updatePbSupplyIndex(pTokenAddr);
+        _distributeSupplierPb(pTokenAddr, redeemer);
 
         return uint(Error.NO_ERROR);
     }
@@ -182,46 +169,42 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         return uint(Error.NO_ERROR);
     }
 
-    function redeemVerify(address pToken, address redeemer, uint redeemAmount, uint redeemTokens) external pure override {
-        pToken;
+    function redeemVerify(address pTokenAddr, address redeemer, uint redeemAmount, uint redeemTokens) external view override {
+        pTokenAddr;
         redeemer;
-
         if (redeemTokens == 0 && redeemAmount > 0) {
             revert("redeemTokens zero");
         }
     }
 
-    function borrowAllowed(address pToken, address borrower, uint borrowAmount) external override returns (uint) {
-        require(!borrowGuardianPaused[pToken], "borrow is paused");
+    function borrowAllowed(address pTokenAddr, address borrower, uint borrowAmount) external override returns (uint) {
+        require(!borrowGuardianPaused[pTokenAddr], "PBAdminImpl: borrow is paused");
 
-        if (!markets[pToken].isListed) {
+        if (!markets[pTokenAddr].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
         }
 
-        if (!marketsAccountMembership[pToken][borrower]) {    
-            require(msg.sender == pToken, "sender must be pToken");
-
+        if (!marketsAccountMembership[pTokenAddr][borrower]) {    
+            require(msg.sender == pTokenAddr, "PBAdminImpl: sender must be pTokenAddr");
             Error err = _addToMarketInternal(PToken(msg.sender), borrower);
             if (err != Error.NO_ERROR) {
                 return uint(err);
             }
-
-            assert(marketsAccountMembership[pToken][borrower]);
+            assert(marketsAccountMembership[pTokenAddr][borrower]);
         }
 
-        if (oracle.getUnderlyingPrice(PToken(pToken)) == 0) {
+        if (oracle.getUnderlyingPrice(PToken(pTokenAddr)) == 0) {
             return uint(Error.PRICE_ERROR);
         }
 
-
-        uint borrowCap = borrowCaps[pToken];
+        uint borrowCap = borrowCaps[pTokenAddr];
         if (borrowCap != 0) {
-            uint totalBorrows = PToken(pToken).totalBorrows();
+            uint totalBorrows = PToken(pTokenAddr).totalBorrows();
             uint nextTotalBorrows = totalBorrows.add(borrowAmount);
-            require(nextTotalBorrows < borrowCap, "market borrow cap reached");
+            require(nextTotalBorrows < borrowCap, "PBAdminImpl: market borrow cap reached");
         }
 
-        (Error err2, , uint shortfall) = _getHypotheticalAccountLiquidityInternal(borrower, PToken(pToken), 0, borrowAmount);
+        (Error err2, , uint shortfall) = _getHypotheticalAccountLiquidityInternal(borrower, PToken(pTokenAddr), 0, borrowAmount);
         if (err2 != Error.NO_ERROR) {
             return uint(err2);
         }
@@ -229,13 +212,11 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
             return uint(Error.INSUFFICIENT_LIQUIDITY);
         }
 
-        _updatePbBorrowIndex(pToken);
-
         return uint(Error.NO_ERROR);
     }
 
     function repayBorrowAllowed(
-        address pToken,
+        address pTokenAddr,
         address payer,
         address borrower,
         uint repayAmount) external override returns (uint) {
@@ -244,32 +225,30 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         borrower;
         repayAmount;
 
-        if (!markets[pToken].isListed) {
+        if (!markets[pTokenAddr].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
         }
-
-        _updatePbBorrowIndex(pToken);
 
         return uint(Error.NO_ERROR);
     }
 
     function liquidateBorrowAllowed(
-        address pTokenBorrowed,
-        address pTokenCollateral,
+        address pTokenAddrBorrowed,
+        address pTokenAddrCollateral,
         address liquidator,
         address borrower,
         uint repayAmount) external view override returns (uint) {
 
         liquidator;
 
-        if (!markets[pTokenBorrowed].isListed || !markets[pTokenCollateral].isListed) {
+        if (!markets[pTokenAddrBorrowed].isListed || !markets[pTokenAddrCollateral].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
         }
 
-        uint borrowBalance = PToken(pTokenBorrowed).borrowBalanceStored(borrower);
+        uint borrowBalance = PToken(pTokenAddrBorrowed).borrowBalanceStored(borrower);
 
-        if (isDeprecated(PToken(pTokenBorrowed))) {
-            require(borrowBalance >= repayAmount, "Can not repay more than the total borrow");
+        if (isDeprecated(PToken(pTokenAddrBorrowed))) {
+            require(borrowBalance >= repayAmount, "PBAdminImpl: Can not repay more than the total borrow");
         } else {
             (Error err, , uint shortfall) = _getAccountLiquidityInternal(borrower);
             if (err != Error.NO_ERROR) {
@@ -289,42 +268,42 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function seizeAllowed(
-        address pTokenCollateral,
-        address pTokenBorrowed,
+        address pTokenAddrCollateral,
+        address pTokenAddrBorrowed,
         address liquidator,
         address borrower,
         uint seizeTokens) external override returns (uint) {
 
-        require(!seizeGuardianPaused, "seize is paused");
+        require(!seizeGuardianPaused, "PBAdminImpl: seize is paused");
 
         seizeTokens;
 
-        if (!markets[pTokenCollateral].isListed || !markets[pTokenBorrowed].isListed) {
+        if (!markets[pTokenAddrCollateral].isListed || !markets[pTokenAddrBorrowed].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
         }
 
-        if (PToken(pTokenCollateral).pbAdmin() != PToken(pTokenBorrowed).pbAdmin()) {
+        if (PToken(pTokenAddrCollateral).pbAdmin() != PToken(pTokenAddrBorrowed).pbAdmin()) {
             return uint(Error.PB_ADMIN_MISMATCH);
         }
 
-        _updatePbSupplyIndex(pTokenCollateral);
-        _distributeSupplierPb(pTokenCollateral, borrower);
-        _distributeSupplierPb(pTokenCollateral, liquidator);
+        _updatePbSupplyIndex(pTokenAddrCollateral);
+        _distributeSupplierPb(pTokenAddrCollateral, borrower);
+        _distributeSupplierPb(pTokenAddrCollateral, liquidator);
 
         return uint(Error.NO_ERROR);
     }
 
-    function transferAllowed(address pToken, address src, address dst, uint transferTokens) external override returns (uint) {
-        require(!transferGuardianPaused, "transfer is paused");
+    function transferAllowed(address pTokenAddr, address src, address dst, uint transferTokens) external override returns (uint) {
+        require(!transferGuardianPaused, "PBAdminImpl: transfer is paused");
 
-        uint allowed = _redeemAllowedInternal(pToken, src, transferTokens);
+        uint allowed = _redeemAllowedInternal(pTokenAddr, src, transferTokens);
         if (allowed != uint(Error.NO_ERROR)) {
             return allowed;
         }
 
-        _updatePbSupplyIndex(pToken);
-        _distributeSupplierPb(pToken, src);
-        _distributeSupplierPb(pToken, dst);
+        _updatePbSupplyIndex(pTokenAddr);
+        _distributeSupplierPb(pTokenAddr, src);
+        _distributeSupplierPb(pTokenAddr, dst);
 
         return uint(Error.NO_ERROR);
     }
@@ -334,10 +313,8 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         uint sumBorrowPlusEffects;
         uint pTokenBalance;
         uint borrowBalance;
-        uint exchangeRateMantissa;
         uint oraclePriceMantissa;
         Exp collateralFactor;
-        Exp exchangeRate;
         Exp oraclePrice;
         Exp tokensToDenom;
     }
@@ -356,6 +333,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         address pTokenAddrModify,
         uint redeemTokens,
         uint borrowAmount) public view returns (uint, uint, uint) {
+
         (Error err, uint liquidity, uint shortfall) = _getHypotheticalAccountLiquidityInternal(account, PToken(pTokenAddrModify), redeemTokens, borrowAmount);
         return (uint(err), liquidity, shortfall);
     }
@@ -377,27 +355,27 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
 
         for (uint i = 0; i < assets.length; i++) {
             PToken asset = assets[i];
-  
-            (oErr, vars.pTokenBalance, vars.borrowBalance, vars.exchangeRateMantissa) = asset.getAccountSnapshot(account);
+
+            (oErr, vars.pTokenBalance, vars.borrowBalance) = asset.getAccountSnapshot(account);
+
             if (oErr != 0) { 
                 return (Error.SNAPSHOT_ERROR, 0, 0);
             }
             vars.collateralFactor = Exp({mantissa: markets[address(asset)].collateralFactorMantissa});
-            vars.exchangeRate = Exp({mantissa: vars.exchangeRateMantissa});
 
             vars.oraclePriceMantissa = oracle.getUnderlyingPrice(asset);
             if (vars.oraclePriceMantissa == 0) {
                 return (Error.PRICE_ERROR, 0, 0);
             }
             vars.oraclePrice = Exp({mantissa: vars.oraclePriceMantissa});
-            vars.tokensToDenom = mulExp(mulExp(vars.collateralFactor, vars.exchangeRate), vars.oraclePrice);
+            vars.tokensToDenom = mulExp(vars.collateralFactor, vars.oraclePrice);
             vars.sumCollateral = mulExpUintTruncAddUint(vars.tokensToDenom, vars.pTokenBalance, vars.sumCollateral);
             vars.sumBorrowPlusEffects = mulExpUintTruncAddUint(vars.oraclePrice, vars.borrowBalance, vars.sumBorrowPlusEffects);
 
             if (asset == pTokenModify) {
                 vars.sumBorrowPlusEffects = mulExpUintTruncAddUint(vars.tokensToDenom, redeemTokens, vars.sumBorrowPlusEffects);
                 vars.sumBorrowPlusEffects = mulExpUintTruncAddUint(vars.oraclePrice, borrowAmount, vars.sumBorrowPlusEffects);
-            }           
+            }
         }
 
         if (vars.sumCollateral > vars.sumBorrowPlusEffects) {
@@ -410,18 +388,18 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     function liquidateCalculateSeizeTokens(address pTokenAddrBorrowed, address pTokenAddrCollateral, uint actualRepayAmount) external view override returns (uint, uint) {
         uint priceBorrowedMantissa = oracle.getUnderlyingPrice(PToken(pTokenAddrBorrowed));
         uint priceCollateralMantissa = oracle.getUnderlyingPrice(PToken(pTokenAddrCollateral));
+
         if (priceBorrowedMantissa == 0 || priceCollateralMantissa == 0) {
             return (uint(Error.PRICE_ERROR), 0);
         }
 
-        uint exchangeRateMantissa = PToken(pTokenAddrCollateral).exchangeRateStored(); // Note: reverts on error
         uint seizeTokens;
         Exp memory numerator;
         Exp memory denominator;
         Exp memory ratio;
 
         numerator = mulExp(Exp({mantissa: liquidationIncentiveMantissa}), Exp({mantissa: priceBorrowedMantissa}));
-        denominator = mulExp(Exp({mantissa: priceCollateralMantissa}), Exp({mantissa: exchangeRateMantissa}));
+        denominator = Exp({mantissa: priceCollateralMantissa});
         ratio = divExp(numerator, denominator);
 
         seizeTokens = mulUintExp(actualRepayAmount, ratio);
@@ -435,7 +413,6 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         }
 
         PriceOracle oldOracle = oracle;
-
         oracle = newOracle;
 
         emit NewPriceOracle(oldOracle, newOracle);
@@ -444,7 +421,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function setCloseFactor(uint newCloseFactorMantissa) external {
-    	require(msg.sender == admin, "only admin can set close factor");
+    	require(msg.sender == admin, "PBAdminImpl: only admin can set close factor");
 
         uint oldCloseFactorMantissa = closeFactorMantissa;
         closeFactorMantissa = newCloseFactorMantissa;
@@ -453,17 +430,17 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function setCollateralFactor(PToken pToken, uint newCollateralFactorMantissa) external {
-    	require(msg.sender == admin, "only admin can set collateral factor");
+    	require(msg.sender == admin, "PBAdminImpl: only admin can set collateral factor");
 
         Market storage market = markets[address(pToken)];
-    	require(market.isListed, "market not listed");
+    	require(market.isListed, "PBAdminImpl: market not listed");
 
         Exp memory newCollateralFactorExp = Exp({mantissa: newCollateralFactorMantissa});
         Exp memory highLimit = Exp({mantissa: collateralFactorMaxMantissa});
 
-        require(!lessThanExp(highLimit, newCollateralFactorExp), "invalid collateral factor");
-        require(address(oracle) != address(0), "price oracle not set yet");
-        require (!(newCollateralFactorMantissa != 0 && oracle.getUnderlyingPrice(pToken) == 0) , "collateral factor price error");
+        require(!lessThanExp(highLimit, newCollateralFactorExp), "PBAdminImpl : invalid collateral factor");
+        require(address(oracle) != address(0), "PBAdminImpl: price oracle not set yet");
+        require (!(newCollateralFactorMantissa != 0 && oracle.getUnderlyingPrice(pToken) == 0) , "PBAdminImpl: collateral factor price error");
 
         uint oldCollateralFactorMantissa = market.collateralFactorMantissa;
         market.collateralFactorMantissa = newCollateralFactorMantissa;
@@ -472,7 +449,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function setLiquidationIncentive(uint newLiquidationIncentiveMantissa) external {
-    	require(msg.sender == admin, "unauthorized");
+    	require(msg.sender == admin, "PBAdminImpl: unauthorized");
 
         uint oldLiquidationIncentiveMantissa = liquidationIncentiveMantissa;
         liquidationIncentiveMantissa = newLiquidationIncentiveMantissa;
@@ -481,10 +458,9 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function supportMarket(PToken pToken) external {
-    	require(msg.sender == admin, "unauthorized");
-    	require(markets[address(pToken)].isListed == false, "market already listed");
-
-        pToken.isPToken(); 
+    	require(msg.sender == admin, "PBAdminImpl: unauthorized");
+    	require(markets[address(pToken)].isListed == false, "PBAdminImpl: market already listed");
+        require(pToken.isPToken(), "PBAdminImpl: invalid pToken");
 
         markets[address(pToken)] = Market({isListed: true, collateralFactorMantissa: 0});
 
@@ -495,8 +471,8 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function unlistMarket(PToken pToken) public {
-    	require(msg.sender == admin, "unauthorized");
-    	require(markets[address(pToken)].isListed == true, "market note listed");
+    	require(msg.sender == admin, "PBAdminImpl: unauthorized");
+    	require(markets[address(pToken)].isListed == true, "PBAdminImpl: market note listed");
 
         markets[address(pToken)].isListed = false;
         _removeMarketInternal(address(pToken));
@@ -504,18 +480,24 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
 
     function _addMarketInternal(address pTokenAddr) internal {
         for (uint i = 0; i < allMarkets.length; i ++) {
-            require(allMarkets[i] != PToken(pTokenAddr), "market already added");
+            require(allMarkets[i] != PToken(pTokenAddr), "PBAdminImpl: market already added");
         }
         allMarkets.push(PToken(pTokenAddr));
     }
 
     function _removeMarketInternal(address pTokenAddr) internal {
-        for (uint i = 0; i < allMarkets.length; i ++) {
+        uint len = allMarkets.length;
+        require(len > 0, "PBAdminImpl: empty allMarkets");
+        uint marketIndex = allMarkets.length;
+        for (uint i = 0; i < len; i ++) {
             if (allMarkets[i] == PToken(pTokenAddr)) {
-                delete allMarkets[i];
+                marketIndex = i;
                 break;
             }
         }
+        assert (marketIndex < len);
+        allMarkets[marketIndex] = allMarkets[len - 1];
+        allMarkets.pop();
     }
 
     function _initializeMarket(address pTokenAddr) internal {
@@ -536,12 +518,12 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function setMarketBorrowCaps(PToken[] calldata pTokens, uint[] calldata newBorrowCaps) external {
-    	require(msg.sender == admin || msg.sender == borrowCapGuardian, "only admin or borrow cap guardian can set borrow caps"); 
+    	require(msg.sender == admin || msg.sender == borrowCapGuardian, "PBAdminImpl: only admin or borrow cap guardian can set borrow caps"); 
 
         uint numMarkets = pTokens.length;
         uint numBorrowCaps = newBorrowCaps.length;
 
-        require(numMarkets != 0 && numMarkets == numBorrowCaps, "invalid input");
+        require(numMarkets != 0 && numMarkets == numBorrowCaps, "PBAdminImpl: invalid input");
 
         for(uint i = 0; i < numMarkets; i++) {
             borrowCaps[address(pTokens[i])] = newBorrowCaps[i];
@@ -550,77 +532,72 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function setBorrowCapGuardian(address newBorrowCapGuardian) external {
-        require(msg.sender == admin, "only admin can set borrow cap guardian");
-
+        require(msg.sender == admin, "PBAdminImpl: only admin can set borrow cap guardian");
         address oldBorrowCapGuardian = borrowCapGuardian;
-
         borrowCapGuardian = newBorrowCapGuardian;
-
         emit NewBorrowCapGuardian(oldBorrowCapGuardian, newBorrowCapGuardian);
     }
 
     function setPauseGuardian(address newPauseGuardian) public {
-    	require(msg.sender == admin, "unauthorized");        
-
+    	require(msg.sender == admin, "PBAdminImpl: unauthorized");        
         address oldPauseGuardian = pauseGuardian;
         pauseGuardian = newPauseGuardian;
-
         emit NewPauseGuardian(oldPauseGuardian, pauseGuardian);
     }
 
     function setMintPaused(PToken pToken, bool state) public returns (bool) {
-        require(markets[address(pToken)].isListed, "cannot pause a market that is not listed");
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+        require(markets[address(pToken)].isListed, "PBAdminImpl: cannot pause a market that is not listed");
+        require(msg.sender == pauseGuardian || msg.sender == admin, "PBAdminImpl: only pause guardian and admin can pause");
+        require(msg.sender == admin || state == true, "PBAdminImpl: only admin can unpause");
 
         mintGuardianPaused[address(pToken)] = state;
-        emit ActionPaused(pToken, "Mint", state);
+        emit ActionPaused3(pToken, "Mint", state);
         return state;
     }
 
     function setBorrowPaused(PToken pToken, bool state) public returns (bool) {
-        require(markets[address(pToken)].isListed, "cannot pause a market that is not listed");
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+        require(markets[address(pToken)].isListed, "PBAdminImpl: cannot pause a market that is not listed");
+        require(msg.sender == pauseGuardian || msg.sender == admin, "PBAdminImpl: only pause guardian and admin can pause");
+        require(msg.sender == admin || state == true, "PBAdminImpl: only admin can unpause");
 
         borrowGuardianPaused[address(pToken)] = state;
-        emit ActionPaused(pToken, "Borrow", state);
+        emit ActionPaused3(pToken, "Borrow", state);
         return state;
     }
 
     function setTransferPaused(bool state) public returns (bool) {
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+        require(msg.sender == pauseGuardian || msg.sender == admin, "PBAdminImpl: only pause guardian and admin can pause");
+        require(msg.sender == admin || state == true, "PBAdminImpl: only admin can unpause");
 
         transferGuardianPaused = state;
-        emit ActionPaused("Transfer", state);
+        emit ActionPaused2("Transfer", state);
         return state;
     }
 
     function setSeizePaused(bool state) public returns (bool) {
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+        require(msg.sender == pauseGuardian || msg.sender == admin, "PBAdminImpl: only pause guardian and admin can pause");
+        require(msg.sender == admin || state == true, "PBAdminImpl: only admin can unpause");
 
         seizeGuardianPaused = state;
-        emit ActionPaused("Seize", state);
+        emit ActionPaused2("Seize", state);
         return state;
     }
 
-    function _updatePbSupplyIndex(address pToken) internal {
-        PBMarketState storage supplyState = pbSupplyState[pToken];
+    function _updatePbSupplyIndex(address pTokenAddr) internal {
+        PBMarketState storage supplyState = pbSupplyState[pTokenAddr];
         uint32 blockNumber = safe32(getBlockNumber());
         uint deltaBlocks = uint(blockNumber).sub(uint(supplyState.block));
         if (deltaBlocks > 0) {
             supplyState.block = blockNumber;
-        }
-    }
 
-    function _updatePbBorrowIndex(address pToken) internal {    
-        PBMarketState storage borrowState = pbBorrowState[pToken];
-        uint32 blockNumber = safe32(getBlockNumber());
-        uint deltaBlocks = uint(blockNumber).sub(uint(borrowState.block));
-        if (deltaBlocks > 0) { 
-            borrowState.block = blockNumber;
+            PToken pToken = PToken(pTokenAddr);        
+            uint supplyTokens = pToken.totalSupply();
+
+            if (supplyTokens > 0) {
+                uint pTokenAccrued = deltaBlocks.mul(pToken.supplyRatePerBlock());
+                Double memory ratio = fractionDouble(pTokenAccrued, supplyTokens);
+                supplyState.index = safe224(addDouble(Double({mantissa: supplyState.index}), ratio).mantissa);
+            }
         }
     }
 
@@ -638,40 +615,50 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         Double memory deltaIndex = Double({mantissa: supplyIndex.sub(supplierIndex)});
 
         uint supplierTokens = PToken(pTokenAddr).balanceOf(supplier);
-
         uint supplierDelta = mulUintDouble(supplierTokens, deltaIndex);
-
-        uint supplierAccrued = pbAccrued[supplier].add(supplierDelta);
-        pbAccrued[supplier] = supplierAccrued;
+        uint supplierAccrued = pTokenAccrued[pTokenAddr][supplier].add(supplierDelta);
+        pTokenAccrued[pTokenAddr][supplier] = supplierAccrued;
 
         emit DistributedSupplierPB(PToken(pTokenAddr), supplier, supplierDelta, supplyIndex);
     }
 
     function claimClank(address holder) public {
-        return claimClank(holder, allMarkets);
+        claimClank2(holder, allMarkets);
     }
 
-    function claimClank(address holder, PToken[] memory pTokens) public {
+    function claimClank2(address holder, PToken[] memory pTokens) public {
         address[] memory holders = new address[](1);
         holders[0] = holder;
-        claimClank(holders, pTokens, true, true);
+        claimClank3(holders, pTokens);
     }
 
-    function claimClank(address[] memory holders, PToken[] memory pTokens, bool borrowers, bool suppliers) public {
-        borrowers;
-
+    function claimClank3(address[] memory holders, PToken[] memory pTokens) public {
         for (uint i = 0; i < pTokens.length; i++) {
             PToken pToken = pTokens[i];
-            require(markets[address(pToken)].isListed, "market must be listed");
-            if (suppliers == true) {
-                _updatePbSupplyIndex(address(pToken));
-                for (uint j = 0; j < holders.length; j++) {
-                    _distributeSupplierPb(address(pToken), holders[j]);
-                }
+            require(markets[address(pToken)].isListed, "PBAdminImpl: market must be listed");
+            _updatePbSupplyIndex(address(pToken));
+            for (uint j = 0; j < holders.length; j++) {
+                _distributeSupplierPb(address(pToken), holders[j]);
             }
         }
-        for (uint j = 0; j < holders.length; j++) {
-            pbAccrued[holders[j]] = _grantClankInternal(holders[j], pbAccrued[holders[j]]);
+
+        for (uint j = 0 ; j < holders.length ; j++) {
+            for (uint k = 0 ; k < pTokens.length ; k++) {
+                PToken pToken = pTokens[k];
+                address holder = holders[j];
+                uint256 tokenAccrued = pTokenAccrued[address(pToken)][holder];
+                uint256 oralcPricePToken = oracle.getUnderlyingPrice(pToken);
+                uint256 oraclePriceClank = oracle.getDirectPrice(getClankAddress());
+                if (tokenAccrued > 0) {
+                    uint256 clankAmount = tokenAccrued.mul(oralcPricePToken).div(oraclePriceClank);
+                    if (clankAmount > 0) {
+                        uint256 grantedClank = _grantClankInternal(holder, clankAmount);
+                        if (grantedClank == 0) {
+                            pTokenAccrued[address(pToken)][holder] = 0;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -685,10 +672,10 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         return amount;
     }
 
-    function grantClank(address recipient, uint amount) public {    
-        require(msg.sender == admin, "only admin can grant Clank");
+    function grantClank(address recipient, uint amount) public {   
+        require(msg.sender == admin, "PBAdminImpl: only admin can grant Clank");
         uint amountLeft = _grantClankInternal(recipient, amount);
-        require(amountLeft == 0, "insufficient Clank for grant");
+        require(amountLeft == 0, "PBAdminImpl: insufficient Clank for grant");
         emit ClankGranted(recipient, amount);
     }
 
@@ -704,12 +691,27 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         ;
     }
 
+    function getAccruedTokens(address pTokenAddr, address holder) external view override returns (uint256) {
+        return pTokenAccrued[pTokenAddr][holder];
+    }
+
+    function getClankBlanace(address holder) external view override returns (uint256) {
+        Clank clank = Clank(getClankAddress());
+        return clank.balanceOf(holder);
+    }
+
+    function clankTransferIn(address pTokenAddr, address payer, uint pTokenAmount) external override returns (bool) {
+        Clank clank = Clank(getClankAddress());
+        uint256 clankAmount = pTokenAmount.mul(oracle.getUnderlyingPrice(PToken(pTokenAddr))).div(oracle.getDirectPrice(getClankAddress()));
+        return clank.transferFrom(payer, address(this), clankAmount);
+    }
+
     function getBlockNumber() public view returns (uint) {
         return block.number;
     }
 
     function getClankAddress() public view returns (address) {
-        require(clankAddress != address(0), "clank address is not set yet");
+        require(clankAddress != address(0), "PBAdminImpl: clank address is not set yet");
         return clankAddress;
     }
 }
