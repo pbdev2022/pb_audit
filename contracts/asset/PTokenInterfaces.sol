@@ -72,8 +72,6 @@ abstract contract PTokenInterface is PTokenStorage {
     function getAccountSnapshot(address account) external view virtual returns (uint256, uint256, uint256);
     function borrowRatePerBlock() external view virtual returns (uint256);
     function supplyRatePerBlock() external view virtual returns (uint256);
-    function borrowAPR() external view virtual returns (uint256);
-    function supplyAPR() external view virtual returns (uint256);
     function totalBorrowsCurrent() external virtual returns (uint256);
     function borrowBalanceCurrent(address account) external virtual returns (uint256);
     function borrowBalanceStored(address account) public view virtual returns (uint256);

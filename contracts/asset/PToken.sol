@@ -139,14 +139,6 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         return interestModel.getSupplyRate(getCashPrior(), totalBorrows, totalReserves);
     }
 
-    function borrowAPR() external view override returns (uint256) {
-        return interestModel.getBorrowAPR(getCashPrior(), totalBorrows, totalReserves);
-    }
-
-    function supplyAPR() external view override returns (uint256) {
-        return interestModel.getSupplyAPR(getCashPrior(), totalBorrows, totalReserves);
-    }
-
     function totalBorrowsCurrent() external override nonReentrant returns (uint256) {
         require(accrueInterest() == uint256(Error.NO_ERROR), "PToken: accrue interest failed");
         return totalBorrows;

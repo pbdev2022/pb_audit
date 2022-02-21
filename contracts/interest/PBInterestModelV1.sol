@@ -23,34 +23,23 @@ contract PBInterestModelV1 is InterestModelInterface {
 
     constructor(uint256 baseRatePerYear, uint256 multiplierPerYear, uint256 govDeptRatio_, uint256 jumpMultiplierPerYear, uint256 kink_) {
         admin = msg.sender;
+        updateInterestModelInternal(baseRatePerYear, multiplierPerYear, govDeptRatio_, jumpMultiplierPerYear, kink_);
+    }
 
-        require(jumpMultiplierPerYear >= multiplierPerYear, "PBInterestModelV1 : jumpMultiplierPerYear must be gratter than multiplierPerYear");
+    function updateInterestModel(uint256 baseRatePerYear, uint256 multiplierPerYear, uint256 govDeptRatio_, uint256 jumpMultiplierPerYear, uint256 kink_) public {
+        require(msg.sender == admin, "only admin may call this function.");
+        updateInterestModelInternal(baseRatePerYear, multiplierPerYear, govDeptRatio_, jumpMultiplierPerYear, kink_);
+    }
 
+    function updateInterestModelInternal(uint256 baseRatePerYear, uint256 multiplierPerYear, uint256 govDeptRatio_, uint256 jumpMultiplierPerYear, uint256 kink_) internal {
         baseRatePerBlock = baseRatePerYear.div(blocksPerYear);
-        multiplierPerBlock = multiplierPerYear.div(blocksPerYear);
+        multiplierPerBlock = (multiplierPerYear.mul(1e18)).div(blocksPerYear.mul(kink_));
         govDeptRatio = govDeptRatio_;
         jumpMultiplierPerBlock = jumpMultiplierPerYear.div(blocksPerYear);
         kink = kink_;
 
         emit NewInterestParams(baseRatePerBlock, multiplierPerBlock, govDeptRatio, jumpMultiplierPerBlock, kink);
     }
-
-    function changeRateRatio(uint256 baseRatePerYear, uint256 multiplierPerYear, uint256 jumpMultiplierPerYear, uint256 kink_) public {
-        require(msg.sender == admin, "PBInterestModelV1 : only admin can change interest ratio");
-        require(jumpMultiplierPerYear >= multiplierPerYear, "PBInterestModelV1 : jumpMultiplierPerYear must be gratter than multiplierPerYear");
-
-        baseRatePerBlock = baseRatePerYear.div(blocksPerYear);
-        multiplierPerBlock = multiplierPerYear.div(blocksPerYear);
-        jumpMultiplierPerBlock = jumpMultiplierPerYear.div(blocksPerYear);
-        kink = kink_;
-        emit ChangeInterestRate(baseRatePerBlock, multiplierPerBlock, jumpMultiplierPerBlock, kink);
-    }
-
-    function changeGovDeptRatio(uint govDeptRatio_) public {
-        require(msg.sender == admin, "PBInterestModelV1 : only admin can change Governace Dept Ratio");
-        govDeptRatio = govDeptRatio_;
-        emit ChangeGovDeptRatio(govDeptRatio);
-    }    
 
     function utilizationRate(uint256 cash, uint256 borrows, uint256 reserves) public pure returns (uint256) {
         if (borrows == 0) {
@@ -72,16 +61,8 @@ contract PBInterestModelV1 is InterestModelInterface {
         }        
     }
 
-    function getSupplyRate(uint256 cash, uint256 borrows, uint256 reserves) public view override returns (uint256) {
+    function getSupplyRate(uint256 cash, uint256 borrows, uint256 reserves) external view override returns (uint256) {
         uint256 borrowRate = getBorrowRate(cash, borrows, reserves);
         return borrowRate.mul(govDeptRatio).div(1e18);
     }
-
-    function getBorrowAPR(uint256 cash, uint256 borrows, uint256 reserves) external view override returns (uint256) {
-        return getBorrowRate(cash, borrows, reserves).mul(blocksPerYear);
-    }
-
-    function getSupplyAPR(uint256 cash, uint256 borrows, uint256 reserves) external view override returns (uint256) {
-        return getSupplyRate(cash, borrows, reserves).mul(blocksPerYear);
-    }    
 }
