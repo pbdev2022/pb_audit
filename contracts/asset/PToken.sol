@@ -51,18 +51,18 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         }
 
         uint256 startingAllowance = 0;
-        if (spender != src) {
-            startingAllowance = transferAllowances[src][spender];
-        }
 
         MathError mathErr;
         uint256 allowanceNew;
         uint256 srcTokensNew;
         uint256 dstTokensNew;
 
-        (mathErr, allowanceNew) = subRtn(startingAllowance, tokens);
-        if (mathErr != MathError.NO_ERROR) {
-            return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ALLOWED);
+        if (spender != src) {
+            startingAllowance = transferAllowances[src][spender];
+            (mathErr, allowanceNew) = subRtn(startingAllowance, tokens);
+            if (mathErr != MathError.NO_ERROR) {
+                return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ALLOWED);
+            }
         }
 
         (mathErr, srcTokensNew) = subRtn(accountTokens[src], tokens);
