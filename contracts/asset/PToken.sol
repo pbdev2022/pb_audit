@@ -501,7 +501,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
             vars.accountBorrowsNew = 0;
         }
 
-        (vars.mathErr, vars.totalBorrowsNew) = subRtn(totalBorrows, vars.actualRepayAmount);
+        (vars.mathErr, vars.totalBorrowsNew) = subRtn(totalBorrows, vars.actualRepayAmount.add(vars.interestCalculated));        
         require(vars.mathErr == MathError.NO_ERROR, "PToken: REPAY_BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED");
 
         accountBorrows[borrower].principal = vars.accountBorrowsNew;
