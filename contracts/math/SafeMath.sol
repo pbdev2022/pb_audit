@@ -33,4 +33,11 @@ library SafeMath {
 
         return c;
     }
+
+    function mod(uint256 a, uint256 b) internal pure returns (uint256) {
+        require(b > 0, "SafeMath: mod by zero");
+        uint256 c = a % b;
+
+        return c;
+    }    
 }

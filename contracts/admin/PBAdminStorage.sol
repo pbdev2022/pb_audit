@@ -45,12 +45,12 @@ contract PBAdminStorage {
 
     PToken[] public allMarkets;
 
-    mapping(address => PBMarketState) public pbSupplyState;
-    mapping(address => PBMarketState) public pbBorrowState;
-    mapping(address => mapping(address => uint256)) public pbSupplierIndex;
-    mapping(address => mapping(address => uint256)) public pbBorrowerIndex;
-    mapping(address => mapping(address => uint256)) public pTokenAccrued;
+    mapping(address => PBMarketState) public clankSupplyState;
+    mapping(address => mapping(address => uint256)) public clankSupplierIndex;
+    mapping(address => mapping(address => uint256)) public pTokenClankAccrued;
 
     address public borrowCapGuardian;
     mapping(address => uint256) public borrowCaps;
+
+    mapping(address => uint) public clankSupplySpeeds;
 }

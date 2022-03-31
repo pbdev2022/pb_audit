@@ -23,10 +23,6 @@ contract ExpMath is ExpBase {
         return Exp({mantissa: a.mantissa.mul(expScale).div(b.mantissa)});
     }
 
-    function divUintExp(uint256 a, Exp memory b) pure internal returns (uint256) {
-        return a.mul(expScale).div(b.mantissa);
-    }
-
     function mulExpUnitTrunc(Exp memory a, uint256 scalar) pure internal returns (uint256) {
         Exp memory product = mulExpUint(a, scalar);
         return truncExp(product);

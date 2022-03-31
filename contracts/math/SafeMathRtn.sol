@@ -49,14 +49,4 @@ contract SafeMathRtn {
 
         return (MathError.NO_ERROR, a / b);
     }
-
-    function addThenSubRtn(uint256 a, uint256 b, uint256 c) internal pure returns (MathError, uint256) {
-        (MathError err0, uint256 sum) = addRtn(a, b);
-
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, 0);
-        }
-
-        return subRtn(sum, c);
-    }    
 }

@@ -16,7 +16,6 @@ contract PErc20 is PToken, PErc20Interface {
 
         super.initialize(pbAdmin_, interestModel_, name_, symbol_, decimals_);
         underlying = underlying_;
-        //EIP20Interface(underlying).totalSupply();
     }
 
     function mint(uint256 mintAmount) external override returns (uint256) {

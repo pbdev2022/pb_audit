@@ -27,6 +27,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     event NewBorrowCap(PToken indexed pToken, uint newBorrowCap);
     event NewBorrowCapGuardian(address oldBorrowCapGuardian, address newBorrowCapGuardian);
     event ClankGranted(address recipient, uint amount);
+    event ClankSupplySpeedUpdated(PToken indexed pToken, uint newSpeed);
 
     uint224 public constant pbInitialIndex = 1e36;
     uint internal constant collateralFactorMaxMantissa = 0.9e18; // 0.9
@@ -80,7 +81,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     function exitMarket(address pTokenAddr) external override returns (uint) {
         PToken pToken = PToken(pTokenAddr);
 
-        (uint oErr, uint tokensHeld, uint amountOwed) = pToken.getAccountSnapshot(msg.sender);
+        (uint oErr, uint tokensHeld, uint amountOwed, uint amountGDROwed) = pToken.getAccountSnapshot(msg.sender);
 
         require(oErr == 0, "PBAdminImpl: exitMarket - getAccountSnapshot failed"); 
         require(amountOwed == 0, "PBAdminImpl: exitMarket - nonzero borrow balance");
@@ -131,8 +132,8 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
 
         mintAmount;
 
-        _updatePbSupplyIndex(pTokenAddr);
-        _distributeSupplierPb(pTokenAddr, minter);
+        _updateClankSupplyIndex(pTokenAddr);
+        _distributeSupplierClank(pTokenAddr, minter);
 
         return uint(Error.NO_ERROR);
     }
@@ -143,8 +144,8 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
             return allowed;
         }
 
-        _updatePbSupplyIndex(pTokenAddr);
-        _distributeSupplierPb(pTokenAddr, redeemer);
+        _updateClankSupplyIndex(pTokenAddr);
+        _distributeSupplierClank(pTokenAddr, redeemer);
 
         return uint(Error.NO_ERROR);
     }
@@ -162,6 +163,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         if (err != Error.NO_ERROR) {
             return uint(err);
         }
+
         if (shortfall > 0) {
             return uint(Error.INSUFFICIENT_LIQUIDITY);
         }
@@ -286,9 +288,9 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
             return uint(Error.PB_ADMIN_MISMATCH);
         }
 
-        _updatePbSupplyIndex(pTokenAddrCollateral);
-        _distributeSupplierPb(pTokenAddrCollateral, borrower);
-        _distributeSupplierPb(pTokenAddrCollateral, liquidator);
+        _updateClankSupplyIndex(pTokenAddrCollateral);
+        _distributeSupplierClank(pTokenAddrCollateral, borrower);
+        _distributeSupplierClank(pTokenAddrCollateral, liquidator);
 
         return uint(Error.NO_ERROR);
     }
@@ -301,9 +303,9 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
             return allowed;
         }
 
-        _updatePbSupplyIndex(pTokenAddr);
-        _distributeSupplierPb(pTokenAddr, src);
-        _distributeSupplierPb(pTokenAddr, dst);
+        _updateClankSupplyIndex(pTokenAddr);
+        _distributeSupplierClank(pTokenAddr, src);
+        _distributeSupplierClank(pTokenAddr, dst);
 
         return uint(Error.NO_ERROR);
     }
@@ -313,6 +315,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         uint sumBorrowPlusEffects;
         uint pTokenBalance;
         uint borrowBalance;
+        uint borrowGDRBalance;
         uint oraclePriceMantissa;
         Exp collateralFactor;
         Exp oraclePrice;
@@ -356,7 +359,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         for (uint i = 0; i < assets.length; i++) {
             PToken asset = assets[i];
 
-            (oErr, vars.pTokenBalance, vars.borrowBalance) = asset.getAccountSnapshot(account);
+            (oErr, vars.pTokenBalance, vars.borrowBalance, vars.borrowGDRBalance) = asset.getAccountSnapshot(account);
 
             if (oErr != 0) { 
                 return (Error.SNAPSHOT_ERROR, 0, 0);
@@ -503,18 +506,13 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     function _initializeMarket(address pTokenAddr) internal {
         uint32 blockNumber = safe32(getBlockNumber());
 
-        PBMarketState storage supplyState = pbSupplyState[pTokenAddr];
-        PBMarketState storage borrowState = pbBorrowState[pTokenAddr];
+        PBMarketState storage supplyState = clankSupplyState[pTokenAddr];
 
         if (supplyState.index == 0) {
             supplyState.index = pbInitialIndex;
         }
 
-        if (borrowState.index == 0) {
-            borrowState.index = pbInitialIndex;
-        }
-
-         supplyState.block = borrowState.block = blockNumber;
+        supplyState.block = blockNumber;
     }
 
     function setMarketBorrowCaps(PToken[] calldata pTokens, uint[] calldata newBorrowCaps) external {
@@ -583,43 +581,42 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         return state;
     }
 
-    function _updatePbSupplyIndex(address pTokenAddr) internal {
-        PBMarketState storage supplyState = pbSupplyState[pTokenAddr];
+    function _updateClankSupplyIndex(address pTokenAddr) internal {
+        PBMarketState storage supplyState = clankSupplyState[pTokenAddr];
+        uint supplySpeed = clankSupplySpeeds[pTokenAddr];
         uint32 blockNumber = safe32(getBlockNumber());
         uint deltaBlocks = uint(blockNumber).sub(uint(supplyState.block));
-        if (deltaBlocks > 0) {
+        if (deltaBlocks > 0 && supplySpeed > 0) {
+            uint supplyTokens = PToken(pTokenAddr).totalSupply();
+            uint clankAccrued = deltaBlocks.mul(supplySpeed);
+            Double memory ratio = supplyTokens > 0 ? fractionDouble(clankAccrued, supplyTokens) : Double({mantissa: 0});
+            supplyState.index = safe224(addDouble(Double({mantissa: supplyState.index}), ratio).mantissa);
             supplyState.block = blockNumber;
-
-            PToken pToken = PToken(pTokenAddr);        
-            uint supplyTokens = pToken.totalSupply();
-
-            if (supplyTokens > 0) {
-                uint pTokenAccrued = deltaBlocks.mul(pToken.supplyRatePerBlock());
-                Double memory ratio = fractionDouble(pTokenAccrued, supplyTokens);
-                supplyState.index = safe224(addDouble(Double({mantissa: supplyState.index}), ratio).mantissa);
-            }
+        } else if (deltaBlocks > 0) {
+            supplyState.block = blockNumber;
         }
     }
 
-    function _distributeSupplierPb(address pTokenAddr, address supplier) internal {
-        PBMarketState storage supplyState = pbSupplyState[pTokenAddr];
-        uint supplyIndex = supplyState.index;
-        uint supplierIndex = pbSupplierIndex[pTokenAddr][supplier];
+    function _distributeSupplierClank(address pTokenAddr, address supplier) internal {
+        PBMarketState storage supplyState = clankSupplyState[pTokenAddr];
+        uint clankSupplyIndex = supplyState.index;
+        uint supplierIndex = clankSupplierIndex[pTokenAddr][supplier];
 
-        pbSupplierIndex[pTokenAddr][supplier] = supplyIndex;
+        clankSupplierIndex[pTokenAddr][supplier] = clankSupplyIndex;
 
-        if (supplierIndex == 0 && supplyIndex >= pbInitialIndex) {
+        if (supplierIndex == 0 && clankSupplyIndex >= pbInitialIndex) {
             supplierIndex = pbInitialIndex;
         }
 
-        Double memory deltaIndex = Double({mantissa: supplyIndex.sub(supplierIndex)});
+        if (clankSupplyIndex > supplierIndex) {
+            Double memory deltaIndex = Double({mantissa: clankSupplyIndex.sub(supplierIndex)});            
+            uint supplierTokens = PToken(pTokenAddr).balanceOf(supplier);
+            uint supplierDelta = mulUintDouble(supplierTokens, deltaIndex);
+            uint supplierAccrued = pTokenClankAccrued[pTokenAddr][supplier].add(supplierDelta);
+            pTokenClankAccrued[pTokenAddr][supplier] = supplierAccrued;
 
-        uint supplierTokens = PToken(pTokenAddr).balanceOf(supplier);
-        uint supplierDelta = mulUintDouble(supplierTokens, deltaIndex);
-        uint supplierAccrued = pTokenAccrued[pTokenAddr][supplier].add(supplierDelta);
-        pTokenAccrued[pTokenAddr][supplier] = supplierAccrued;
-
-        emit DistributedSupplierPB(PToken(pTokenAddr), supplier, supplierDelta, supplyIndex);
+            emit DistributedSupplierPB(PToken(pTokenAddr), supplier, supplierDelta, clankSupplyIndex);
+        }
     }
 
     function claimClank(address holder) public {
@@ -636,9 +633,9 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         for (uint i = 0; i < pTokens.length; i++) {
             PToken pToken = pTokens[i];
             require(markets[address(pToken)].isListed, "PBAdminImpl: market must be listed");
-            _updatePbSupplyIndex(address(pToken));
+            _updateClankSupplyIndex(address(pToken));
             for (uint j = 0; j < holders.length; j++) {
-                _distributeSupplierPb(address(pToken), holders[j]);
+                _distributeSupplierClank(address(pToken), holders[j]);
             }
         }
 
@@ -646,18 +643,13 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
             for (uint k = 0 ; k < pTokens.length ; k++) {
                 PToken pToken = pTokens[k];
                 address holder = holders[j];
-                uint256 tokenAccrued = pTokenAccrued[address(pToken)][holder];
-                uint256 oralcPricePToken = oracle.getUnderlyingPrice(pToken);
-                uint256 oraclePriceClank = oracle.getDirectPrice(getClankAddress());
-                if (tokenAccrued > 0) {
-                    uint256 clankAmount = tokenAccrued.mul(oralcPricePToken).div(oraclePriceClank);
-                    if (clankAmount > 0) {
-                        uint256 grantedClank = _grantClankInternal(holder, clankAmount);
-                        if (grantedClank == 0) {
-                            pTokenAccrued[address(pToken)][holder] = 0;
-                        }
+                uint256 clankAccrued = pTokenClankAccrued[address(pToken)][holder];
+                if (clankAccrued > 0) {
+                    uint256 grantedClank = _grantClankInternal(holder, clankAccrued);
+                    if (grantedClank == 0) {
+                        pTokenClankAccrued[address(pToken)][holder] = 0;
                     }
-                }
+                }    
             }
         }
     }
@@ -679,6 +671,29 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         emit ClankGranted(recipient, amount);
     }
 
+    function setClankSpeed(PToken[] memory pTokens, uint[] memory supplySpeeds) public {
+        require(msg.sender == admin, "PBAdminImpl: only admin can set clank speed");        
+
+        uint numTokens = pTokens.length;
+        require(numTokens == supplySpeeds.length, "pbAdminImpl::_setCompSpeeds invalid input");
+
+        for (uint i = 0; i < numTokens; ++i) {
+            _setClankSpeedInternal(pTokens[i], supplySpeeds[i]);
+        }
+    }    
+
+    function _setClankSpeedInternal(PToken pToken, uint supplySpeed) internal {
+        Market storage market = markets[address(pToken)];
+        require(market.isListed, "comp market is not listed");
+
+        if (clankSupplySpeeds[address(pToken)] != supplySpeed) {
+            _updateClankSupplyIndex(address(pToken));
+
+            clankSupplySpeeds[address(pToken)] = supplySpeed;
+            emit ClankSupplySpeedUpdated(pToken, supplySpeed);
+        }
+    }
+
     function getAllMarkets() public view returns (PToken[] memory) {
         return allMarkets;
     }
@@ -692,7 +707,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
     }
 
     function getAccruedTokens(address pTokenAddr, address holder) external view override returns (uint256) {
-        return pTokenAccrued[pTokenAddr][holder];
+        return pTokenClankAccrued[pTokenAddr][holder];
     }
 
     function getClankBlanace(address holder) external view override returns (uint256) {

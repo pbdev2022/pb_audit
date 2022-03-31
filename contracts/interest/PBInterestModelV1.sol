@@ -45,7 +45,7 @@ contract PBInterestModelV1 is InterestModelInterface {
         if (borrows == 0) {
             return 0;
         }
-        uint256 ret = borrows.mul(1e18).div(cash.add(borrows).sub(reserves));        
+        uint256 ret = borrows.mul(1e18).div(cash.add(borrows).sub(reserves));     
         return ret;
     }
 
@@ -61,8 +61,21 @@ contract PBInterestModelV1 is InterestModelInterface {
         }        
     }
 
-    function getSupplyRate(uint256 cash, uint256 borrows, uint256 reserves) external view override returns (uint256) {
+    function getBorrowRateGDR(uint256 cash, uint256 borrows, uint256 reserves) public view override returns (uint256) {
+        if (govDeptRatio > 0) {
+            uint256 br = getBorrowRate(cash, borrows, reserves);
+            uint256 borrowRateGDR = (br.mul(govDeptRatio)).div(uint256(1e18).sub(govDeptRatio));
+            return borrowRateGDR;
+        }
+        else {
+            return 0;
+        }
+    }    
+
+    function getSupplyRate(uint256 cash, uint256 borrows, uint256 reserves, uint reserveFactorMantissa) external view override returns (uint256) {
+        uint256 oneMinusReserveFactor = uint(1e18).sub(reserveFactorMantissa);
         uint256 borrowRate = getBorrowRate(cash, borrows, reserves);
-        return borrowRate.mul(govDeptRatio).div(1e18);
+        uint256 rateToPool = borrowRate.mul(oneMinusReserveFactor).div(1e18);
+        return utilizationRate(cash, borrows, reserves).mul(rateToPool).div(1e18);
     }
 }
