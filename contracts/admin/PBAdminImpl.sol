@@ -85,6 +85,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
 
         require(oErr == 0, "Adm:exitMarket-getAccountSnapshot failed"); 
         require(amountOwed == 0, "Adm:exitMarket-nonzero borrow balance");
+        require(amountGDROwed == 0, "Adm:exitMarket-nonzero borrow GDR balance");
 
         uint allowed = _redeemAllowedInternal(pTokenAddr, msg.sender, tokensHeld);
         require(allowed == 0, "Adm:exitMarket-allowed!=0");
@@ -171,7 +172,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         return uint(Error.NO_ERROR);
     }
 
-    function redeemVerify(address pTokenAddr, address redeemer, uint redeemAmount, uint redeemTokens) external view override {
+    function redeemVerify(address pTokenAddr, address redeemer, uint redeemAmount, uint redeemTokens) external pure override {
         pTokenAddr;
         redeemer;
         if (redeemTokens == 0 && redeemAmount > 0) {
@@ -221,7 +222,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         address pTokenAddr,
         address payer,
         address borrower,
-        uint repayAmount) external override returns (uint) {
+        uint repayAmount) external view override returns (uint) {
 
         payer;
         borrower;
