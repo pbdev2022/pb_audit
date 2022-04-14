@@ -21,11 +21,11 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
                         string memory symbol_,
                         uint8 decimals_) public {
 
-        require(msg.sender == admin, "PToken: only admin may initialize the market");
-        require(accrualBorrowBlockNumber == 0 && borrowIndex == 0, "PToken: market may only be initialized once");
+        require(msg.sender == admin, "PT:initialize(01)");
+        require(accrualBorrowBlockNumber == 0 && borrowIndex == 0, "PT:initialize(02)");
 		
         uint256 err = _setPBAdmin(pbAdmin_);
-        require(err == uint256(Error.NO_ERROR), "PToken: setting PBAdmin failed");
+        require(err == uint256(Error.NO_ERROR), "PT:initialize(03)");
 
         accrualBorrowBlockNumber = getBlockNumber();
         accrualSupplyBlockNumber = getBlockNumber();        
@@ -37,7 +37,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         initalBlockNumber = getBlockNumber();
 
         err = _setInterestModelFresh(interestModel_);
-        require(err == uint256(Error.NO_ERROR), "PToken: setting interest rate model failed");
+        require(err == uint256(Error.NO_ERROR), "PT:initialize(04)");
 
         name = name_;
         symbol = symbol_;
@@ -184,18 +184,18 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
     }
 
     function totalBorrowsCurrent() external override nonReentrant returns (uint256) {
-        require(accrueInterest() == uint256(Error.NO_ERROR), "PToken: accrue borrow interest failed");
+        require(accrueInterest() == uint256(Error.NO_ERROR), "PT:totalBorrowsCurrent");
         return totalBorrows;
     }
 
     function borrowBalanceCurrent(address account) external override nonReentrant returns (uint256) {
-        require(accrueInterest() == uint256(Error.NO_ERROR), "PToken: accrue borrow interest failed");
+        require(accrueInterest() == uint256(Error.NO_ERROR), "PT:borrowBalanceCurrent");
         return borrowBalanceStored(account);
     }
 
     function borrowBalanceStored(address account) public view override returns (uint256) {
         (MathError err, uint256 result) = borrowBalanceStoredInternal(account);
-        require(err == MathError.NO_ERROR, "PToken: borrowBalanceStoredInternal failed");
+        require(err == MathError.NO_ERROR, "PT:borrowBalanceStored");
         return result;
     }
 
@@ -225,7 +225,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
 
     function borrowGDRBalanceStored(address account) public view override returns (uint256) {
         (MathError err, uint256 result) = borrowGDRBalanceStoredInternal(account);
-        require(err == MathError.NO_ERROR, "PToken: borrowGDRBalanceStoredInternal failed");
+        require(err == MathError.NO_ERROR, "PT:borrowGDRBalanceStored");
         return result;
     }
 
@@ -261,7 +261,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
 
     function supplyBalanceStored(address account) public view override returns (uint256) {
         (MathError err, uint256 result) = supplyBalanceStoredInternal(account);
-        require(err == MathError.NO_ERROR, "PToken: supplyBalanceStoredInternal failed");
+        require(err == MathError.NO_ERROR, "PT:supplyBalanceStored");
         return result;
     }
 
@@ -325,10 +325,10 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
             uint256 cashPrior = getCashPrior();
 
             uint256 borrowRatePerDayMantissa = interestModel.getBorrowRate(cashPrior, totalBorrows, totalReserves).mul(blocksPerDay);
-            require(borrowRatePerDayMantissa <= borrowRateMaxMantissa, "PToken: borrow rate is absurdly high");
+            require(borrowRatePerDayMantissa <= borrowRateMaxMantissa, "PT:accrueBorrowInterest(01)");
 
             uint256 borrowRateGDRPerDayMantissa = interestModel.getBorrowRateGDR(cashPrior, totalBorrows, totalReserves).mul(blocksPerDay);
-            require(borrowRateGDRPerDayMantissa <= borrowRateMaxMantissa, "PToken: borrow rate gdr is absurdly high");            
+            require(borrowRateGDRPerDayMantissa <= borrowRateMaxMantissa, "PT:accrueBorrowInterest(02)");
 
             uint256 nDayDelta = currentBlockDays.sub(accrualBlockDays);
 
@@ -409,7 +409,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
             uint256 cashPrior = getCashPrior();
 
             uint256 supplyRatePerDayMantissa = interestModel.getSupplyRate(cashPrior, totalBorrows, totalReserves, reserveFactorMantissa).mul(blocksPerDay);
-            require(supplyRatePerDayMantissa <= supplyRateMaxMantissa, "PToken: supply rate is absurdly high");
+            require(supplyRatePerDayMantissa <= supplyRateMaxMantissa, "PT:accrueSupplyInterest");
 
             // 이용률에 따라 suupplyRatePerDay == 0 인 경우가 있으며 이 경우 굳이 이용률을 계산하지 않는다.
             if (supplyRatePerDayMantissa > 0) { 
@@ -495,13 +495,13 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         vars.mintTokens = vars.actualMintAmount;
 
         (vars.mathErr, vars.totalSupplyNew) = addRtn(totalSupply, vars.mintTokens);
-        require(vars.mathErr == MathError.NO_ERROR, "PToken: MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
+        require(vars.mathErr == MathError.NO_ERROR, "PT:mintFresh(01)");
 
         (vars.mathErr, vars.accountTokensBefore) = supplyBalanceStoredInternal(minter);
-        require(vars.mathErr == MathError.NO_ERROR, "PToken: MINT_NEW_SUPPLY_ACCUMULATED_BALANCE_CALCULATION_FAILED");        
+        require(vars.mathErr == MathError.NO_ERROR, "PT:mintFresh(02)");        
 
         (vars.mathErr, vars.accountTokensNew) = addRtn(vars.accountTokensBefore, vars.mintTokens);
-        require(vars.mathErr == MathError.NO_ERROR, "PToken: MINT_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED");
+        require(vars.mathErr == MathError.NO_ERROR, "PT:mintFresh(03)");
 
         totalSupply = vars.totalSupplyNew;
         accountTokens[minter] = vars.accountTokensNew;
@@ -534,7 +534,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
     }
 
     function redeemFresh(address payable redeemer, uint256 redeemTokensIn, uint256 redeemAmountIn) internal returns (uint256) {
-        require(redeemTokensIn == 0 || redeemAmountIn == 0, "PToken: one of redeemTokensIn or redeemAmountIn must be zero");
+        require(redeemTokensIn == 0 || redeemAmountIn == 0, "PT:redeemFres");
 
         RedeemLocalVars memory vars;
 
@@ -718,14 +718,14 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         vars.actualRepayAmount = doTransferIn(payer, vars.repayAmount);
 
         (vars.mathErr, vars.accountBorrowsNew) = subRtn(vars.accountBorrows, vars.actualRepayAmount);
-        require(vars.mathErr == MathError.NO_ERROR, "REPAY_BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED");
+        require(vars.mathErr == MathError.NO_ERROR, "repayBorrowFresh(01)");
 
         (vars.mathErr, vars.totalBorrowsNew) = subRtn(totalBorrows, vars.actualRepayAmount);
-        require(vars.mathErr == MathError.NO_ERROR, "REPAY_BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED");
+        require(vars.mathErr == MathError.NO_ERROR, "repayBorrowFresh(02)");
 
         bool clankWithdrawRet = pbAdmin.clankTransferIn(address(this), payer, vars.repayGDRAmount);
 
-        require(clankWithdrawRet == true, "clank withdraw failed");
+        require(clankWithdrawRet == true, "repayBorrowFresh(03)");
 
         accountBorrows[borrower].principal = vars.accountBorrowsNew;
         accountBorrows[borrower].interestIndex = borrowIndex;
@@ -785,8 +785,8 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         }
 
         (uint256 amountSeizeError, uint256 seizeTokens) = pbAdmin.liquidateCalculateSeizeTokens(address(this), address(pTokenCollateral), actualRepayAmount);
-        require(amountSeizeError == uint256(Error.NO_ERROR), "PToken: LIQUIDATE_PB_ADMIN_CALCULATE_AMOUNT_SEIZE_FAILED");
-        require(pTokenCollateral.balanceOf(borrower) >= seizeTokens, "PToken: LIQUIDATE_SEIZE_TOO_MUCH");
+        require(amountSeizeError == uint256(Error.NO_ERROR), "PT:liquidateBorrowFresh(01)");
+        require(pTokenCollateral.balanceOf(borrower) >= seizeTokens, "PT:liquidateBorrowFresh(02)");
 
         uint256 seizeError;
         if (address(pTokenCollateral) == address(this)) {
@@ -795,7 +795,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
             seizeError = pTokenCollateral.seize(liquidator, borrower, seizeTokens);
         }
 
-        require(seizeError == uint256(Error.NO_ERROR), "PToken: token seizure failed");
+        require(seizeError == uint256(Error.NO_ERROR), "PT:liquidateBorrowFresh(03)");
 
         emit LiquidateBorrow(liquidator, borrower, actualRepayAmount, address(pTokenCollateral), seizeTokens);
 
@@ -917,7 +917,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         }
 
         PBAdminInterface oldPBAdmin = pbAdmin;
-        require(newPBAdmin.isPBAdmin(), "PToken: marker method returned false");
+        require(newPBAdmin.isPBAdmin(), "PT:_setPBAdmin");
 
         pbAdmin = newPBAdmin;
 
@@ -977,7 +977,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
 
         totalReservesNew = totalReserves + actualAddAmount;
 
-        require(totalReservesNew >= totalReserves, "PToken: add reserves unexpected overflow");
+        require(totalReservesNew >= totalReserves, "PT:_addReservesFresh");
         totalReserves = totalReservesNew;
 
         emit ReservesAdded(msg.sender, actualAddAmount, totalReservesNew);
@@ -1014,7 +1014,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         }
 
         totalReservesNew = totalReserves - reduceAmount;
-        require(totalReservesNew <= totalReserves, "PToken: reduce reserves unexpected underflow");
+        require(totalReservesNew <= totalReserves, "PT:_reduceReservesFresh");
         totalReserves = totalReservesNew;
 
         doTransferOut(payable(admin), reduceAmount);
@@ -1045,7 +1045,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
         }
 
         oldInterestModel = interestModel;
-        require(newInterestModel.isInterestModel(), "PToken: marker method returned false");
+        require(newInterestModel.isInterestModel(), "PT:_setInterestModelFresh");
         interestModel = newInterestModel;
 
         emit NewMarketInterestModel(oldInterestModel, newInterestModel);
@@ -1058,7 +1058,7 @@ abstract contract PToken is PTokenInterface, ExpMath, ExpMathRtn, TokenErrorRepo
     function doTransferOut(address payable to, uint256 amount) internal virtual;
 
     modifier nonReentrant() {
-        require(_notEntered, "PToken: re-entered");
+        require(_notEntered, "PT:re-entered");
         _notEntered = false;
         _;
         _notEntered = true; 
