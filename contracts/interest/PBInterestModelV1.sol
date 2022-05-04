@@ -21,6 +21,12 @@ contract PBInterestModelV1 is InterestModelInterface {
     uint256 public jumpMultiplierPerBlock;
     uint256 public kink;
 
+    uint256 public prevBaseRatePerBlock;
+    uint256 public prevMultiplierPerBlock;
+    uint256 public prevGovDeptRatio;
+    uint256 public prevJumpMultiplierPerBlock;
+    uint256 public prevKink;
+
     constructor(uint256 baseRatePerYear, uint256 multiplierPerYear, uint256 govDeptRatio_, uint256 jumpMultiplierPerYear, uint256 kink_) {
         admin = msg.sender;
         updateInterestModelInternal(baseRatePerYear, multiplierPerYear, govDeptRatio_, jumpMultiplierPerYear, kink_);
@@ -32,6 +38,12 @@ contract PBInterestModelV1 is InterestModelInterface {
     }
 
     function updateInterestModelInternal(uint256 baseRatePerYear, uint256 multiplierPerYear, uint256 govDeptRatio_, uint256 jumpMultiplierPerYear, uint256 kink_) internal {
+        prevBaseRatePerBlock = baseRatePerBlock;
+        prevMultiplierPerBlock = multiplierPerBlock;
+        prevGovDeptRatio = govDeptRatio;
+        prevJumpMultiplierPerBlock = jumpMultiplierPerBlock;
+        prevKink = kink;
+
         baseRatePerBlock = baseRatePerYear.div(blocksPerYear);
         multiplierPerBlock = (multiplierPerYear.mul(1e18)).div(blocksPerYear.mul(kink_));
         govDeptRatio = govDeptRatio_;

@@ -21,6 +21,6 @@ abstract contract PBAdminInterface {
     function liquidateCalculateSeizeTokens(address pTokenAddrBorrowed, address pTokenAddrCollateral, uint repayAmount) external view virtual returns (uint, uint);
 
     function getAccruedTokens(address pTokenAddr, address holder) external view virtual returns (uint);
-    function getClankBlanace(address holder) external view virtual returns (uint);
+    function getClankBalance(address holder) external view virtual returns (uint);
     function clankTransferIn(address pTokenAddr, address payer, uint interestAmount) external virtual returns (bool);
 }

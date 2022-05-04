@@ -711,7 +711,7 @@ contract PBAdminImpl is PBAdminStorage, PBAdminInterface, PBAdminErrorReporter, 
         return pTokenClankAccrued[pTokenAddr][holder];
     }
 
-    function getClankBlanace(address holder) external view override returns (uint256) {
+    function getClankBalance(address holder) external view override returns (uint256) {
         Clank clank = Clank(getClankAddress());
         return clank.balanceOf(holder);
     }
